@@ -1,2 +1,4 @@
 *override.tf
+*.tfstate
+*.tfstate.backup
 *.swp
