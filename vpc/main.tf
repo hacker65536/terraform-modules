@@ -5,25 +5,35 @@ provider "aws" {
 
 resource "aws_vpc" "vpc" {
   cidr_block           = "${var.cidr}"
-  enable_dns_hostnames = "${var.dns_hostnames}"
-  enable_dns_support   = "${var.dns_support}"
+  enable_dns_hostnames = "${var.enable_dns_hostnames}"
+  enable_dns_support   = "${var.enable_dns_support}"
+  tags                 = "${merge(var.tags, map("Name", format("%s", var.vpc_name)))}"
+}
 
-  tags {
-    Name      = "${var.tag_env_name}"
-    CostGroup = "${var.tag_cost_grp}"
-    Author    = "${var.tag_author}"
-  }
+# want a better idea about tagging author
+resource "aws_internet_gateway" "igw" {
+  vpc_id = "${aws_vpc.vpc.id}"
+  tags   = "${merge(var.tags, map("Name", format("%s", var.vpc_name)))}"
+}
+
+# tagging default_route_table
+resource "aws_default_route_table" "defrt" {
+  default_route_table_id = "${aws_vpc.vpc.default_route_table_id}"
+
+  tags = "${merge(var.tags, map("Name", format("%s", var.vpc_name)))}"
+}
+
+resource "aws_route" "pub_igw_route" {
+  route_table_id         = "${aws_vpc.vpc.main_route_table_id}"
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = "${aws_internet_gateway.igw.id}"
 }
 
 resource "aws_vpc_dhcp_options" "dns" {
   domain_name         = "${var.pri_domain_name} ${var.region}.compute.internal"
   domain_name_servers = ["AmazonProvidedDNS"]
 
-  tags {
-    Name      = "${var.tag_env_name}"
-    CostGroup = "${var.tag_cost_grp}"
-    Author    = "${var.tag_author}"
-  }
+  tags = "${merge(var.tags, map("Name", format("%s", var.vpc_name)))}"
 }
 
 resource "aws_vpc_dhcp_options_association" "dns" {
@@ -33,7 +43,7 @@ resource "aws_vpc_dhcp_options_association" "dns" {
 
 resource "aws_route53_zone" "dns" {
   name    = "${var.pri_domain_name}"
-  comment = "${var.tag_env_name} local dns"
+  comment = "${var.vpc_name} local dns"
   vpc_id  = "${aws_vpc.vpc.id}"
 }
 
@@ -42,9 +52,5 @@ resource "aws_subnet" "sub" {
   vpc_id     = "${aws_vpc.vpc.id}"
   cidr_block = "${cidrsubnet(aws_vpc.vpc.cidr_block,8,count.index)}"
 
-  tags {
-    Name      = "${var.tag_env_name}"
-    CostGroup = "${var.tag_cost_grp}"
-    Author    = "${var.tag_author}"
-  }
+  tags = "${merge(var.tags, map("Name", format("%s", var.vpc_name)))}"
 }
